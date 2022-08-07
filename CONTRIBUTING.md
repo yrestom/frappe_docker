@@ -1,68 +1,76 @@
 # Contribution Guidelines
 
-## Branches
+Before publishing a PR, please test builds locally.
 
-* *master*:  images on the master branch are built monthly and with github action triggered by ERPNext release.
-* *develop*: images on this branch are built daily and when PR is merged into develop.
+On each PR that contains changes relevant to Docker builds, images are being built and tested in our CI (GitHub Actions).
 
-# Pull Requests
+> :evergreen_tree: Please be considerate when pushing commits and opening PR for multiple branches, as the process of building images uses energy and contributes to global warming.
 
-Please **send all pull request exclusively to the *develop*** branch.
-When the PR are merged, the merge will trigger the image build automatically.
+## Lint
 
-Please test all PR as extensively as you can, considering that the software can be run in different modes:
+We use `pre-commit` framework to lint the codebase before committing.
+First, you need to install pre-commit with pip:
 
-* with docker-compose for production
-* with or without Nginx proxy
-* with VScode for testing environments
+```shell
+pip install pre-commit
+```
 
-Every once in a while (or with monthly release) develop will be merged into master.
+Also you can use brew if you're on Mac:
 
-There is Github Action is configured on ERPNext repository. Whenever there is a ERPNext release it will trigger a build on master branch of frappe_docker repo to generate images for released version.
+```shell
+brew install pre-commit
+```
 
-When a PR is sent, the images are built and all commands are tested.
+To setup _pre-commit_ hook, run:
 
-If update or fixes to documentation are pushed use `[skip travis]` anywhere in commit message to skip travis.
+```shell
+pre-commit install
+```
 
-## Reducing the number of branching and builds :evergreen_tree: :evergreen_tree: :evergreen_tree:
+To run all the files in repository, run:
 
-Please be considerate when pushing commits and opening PR for multiple branches, as the process of building images (triggered on push and PR branch push) uses energy and contributes to global warming.
+```shell
+pre-commit run --all-files
+```
 
+## Build
+
+We use [Docker Buildx Bake](https://docs.docker.com/engine/reference/commandline/buildx_bake/). To build the images, run command below:
+
+```shell
+FRAPPE_VERSION=... ERPNEXT_VERSION=... docker buildx bake <targets>
+```
+
+Available targets can be found in `docker-bake.hcl`.
+
+## Test
+
+We use [pytest](https://pytest.org) for our integration tests.
+
+Install Python test requirements:
+
+```shell
+python3 -m venv venv
+source venv/bin/activate
+pip install -r requirements-test.txt
+```
+
+Run pytest:
+
+```shell
+pytest
+```
+
+> We also have `requirements-dev.txt` file that contains development requirements for backend image (you can find it in `images/worker/` directory).
 
 # Documentation
 
-Place relevant markdown file(s) in the `docs` directory and index them in README.md located at the root of repo.
+Place relevant markdown files in the `docs` directory and index them in README.md located at the root of repo.
 
 # Wiki
 
 Add alternatives that can be used optionally along with frappe_docker. Add articles to list on home page as well.
 
-# Prerequisites to pass CI
+# Frappe and ERPNext updates
 
-### Check shell script format
-
-Use the following script
-
-```shell
-./tests/check-format.sh
-```
-
-### Build images locally
-
-Use the following commands
-
-```shell
-docker build -t frappe/frappe-socketio:edge -f build/frappe-socketio/Dockerfile .
-docker build -t frappe/frappe-worker:develop -f build/frappe-worker/Dockerfile .
-docker build -t frappe/erpnext-worker:edge -f build/erpnext-worker/Dockerfile .
-docker build -t frappe/frappe-nginx:develop -f build/frappe-nginx/Dockerfile .
-docker build -t frappe/erpnext-nginx:edge -f build/erpnext-nginx/Dockerfile .
-```
-
-### Test running docker containers
-
-Use the following script
-
-```shell
-./tests/docker-test.sh
-```
+Each Frappe/ERPNext release triggers new stable images builds as well as bump to helm chart.

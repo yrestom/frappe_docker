@@ -28,6 +28,12 @@ Copy example devcontainer config from `devcontainer-example` to `.devcontainer`
 cp -R devcontainer-example .devcontainer
 ```
 
+Copy example vscode config for devcontainer from `development/vscode-example` to `development/.vscode`. This will setup basic configuration for debugging.
+
+```shell
+cp -R development/vscode-example development/.vscode
+```
+
 ## Use VSCode Remote Containers extension
 
 For most people getting started with Frappe development, the best solution is to use [VSCode Remote - Containers extension](https://marketplace.visualstudio.com/items?itemName=ms-vscode-remote.remote-containers).
@@ -38,27 +44,41 @@ If you want to use PostgreSQL instead, edit `.devcontainer/docker-compose.yml` a
 VSCode should automatically inquire you to install the required extensions, that can also be installed manually as follows:
 
 - Install Remote - Containers for VSCode
-    - through command line `code --install-extension ms-vscode-remote.remote-containers`
-    - clicking on the Install button in the Vistual Studio Marketplace: [Remote - Containers](https://marketplace.visualstudio.com/items?itemName=ms-vscode-remote.remote-containers)
-    - View: Extensions command in VSCode (Windows: Ctrl+Shift+X; macOS: Cmd+Shift+X) then search for extension `ms-vscode-remote.remote-containers`
+  - through command line `code --install-extension ms-vscode-remote.remote-containers`
+  - clicking on the Install button in the Vistual Studio Marketplace: [Remote - Containers](https://marketplace.visualstudio.com/items?itemName=ms-vscode-remote.remote-containers)
+  - View: Extensions command in VSCode (Windows: Ctrl+Shift+X; macOS: Cmd+Shift+X) then search for extension `ms-vscode-remote.remote-containers`
 
 After the extensions are installed, you can:
 
 - Open frappe_docker folder in VS Code.
-    - `code .`
-- Launch the command, from Command Palette (Ctrl + Shift + P) `Execute Remote Containers : Reopen in Container`. You can also click in the bottom left corner to access the remote container menu.
+  - `code .`
+- Launch the command, from Command Palette (Ctrl + Shift + P) `Remote-Containers: Reopen in Container`. You can also click in the bottom left corner to access the remote container menu.
 
 Notes:
 
 - The `development` directory is ignored by git. It is mounted and available inside the container. Create all your benches (installations of bench, the tool that manages frappe) inside this directory.
-- nvm with node v12 and v10 is installed. Check with `nvm ls`. Node v12 is used by default.
+- Node v14 and v10 are installed. Check with `nvm ls`. Node v14 is used by default.
 
 ### Setup first bench
 
 Run the following commands in the terminal inside the container. You might need to create a new terminal in VSCode.
 
 ```shell
-bench init --skip-redis-config-generation --frappe-branch version-12 frappe-bench
+bench init --skip-redis-config-generation frappe-bench
+cd frappe-bench
+```
+
+For version 13 use Python 3.9 by passing option to `bench init` command,
+
+```shell
+bench init --skip-redis-config-generation --frappe-branch version-13 --python python3.9 frappe-bench
+cd frappe-bench
+```
+
+For version 12 use Python 3.7 by passing option to `bench init` command,
+
+```shell
+bench init --skip-redis-config-generation --frappe-branch version-12 --python python3.7 frappe-bench
 cd frappe-bench
 ```
 
@@ -67,10 +87,21 @@ cd frappe-bench
 We need to tell bench to use the right containers instead of localhost. Run the following commands inside the container:
 
 ```shell
-bench set-mariadb-host mariadb
-bench set-redis-cache-host redis-cache:6379
-bench set-redis-queue-host redis-queue:6379
-bench set-redis-socketio-host redis-socketio:6379
+bench set-config -g db_host mariadb
+bench set-config -g redis_cache redis://redis-cache:6379
+bench set-config -g redis_queue redis://redis-queue:6379
+bench set-config -g redis_socketio redis://redis-socketio:6379
+```
+
+For any reason the above commands fail, set the values in `common_site_config.json` manually.
+
+```json
+{
+  "db_host": "mariadb",
+  "redis_cache": "redis://redis-cache:6379",
+  "redis_queue": "redis://redis-queue:6379",
+  "redis_socketio": "redis://redis-socketio:6379"
+}
 ```
 
 ### Edit Honcho's Procfile
@@ -79,6 +110,8 @@ Note : With the option '--skip-redis-config-generation' during bench init, these
 
 Honcho is the tool used by Bench to manage all the processes Frappe requires. Usually, these all run in localhost, but in this case, we have external containers for Redis. For this reason, we have to stop Honcho from trying to start Redis processes.
 
+Honcho is installed in global python environment along with bench. To make it available locally you've to install it in every `frappe-bench/env` you create. Install it using command `./env/bin/pip install honcho`. It is required locally if you wish to use is as part of VSCode launch configuration.
+
 Open the Procfile file and remove the three lines containing the configuration from Redis, either by editing manually the file:
 
 ```shell
@@ -86,6 +119,7 @@ code Procfile
 ```
 
 Or running the following command:
+
 ```shell
 sed -i '/redis/d' ./Procfile
 ```
@@ -97,6 +131,7 @@ You can create a new site with the following command:
 ```shell
 bench new-site sitename --no-mariadb-socket
 ```
+
 sitename MUST end with .localhost for trying deployments locally.
 
 for example:
@@ -152,14 +187,14 @@ To install custom app
 
 ```shell
 # --branch is optional, use it to point to branch on custom app repository
-bench get-app --branch version-12 myapp https://github.com/myusername/myapp.git
+bench get-app --branch version-12 https://github.com/myusername/myapp
 bench --site mysite.localhost install-app myapp
 ```
 
-To install ERPNext (from the version-12 branch):
+To install ERPNext (from the version-13 branch):
 
 ```shell
-bench get-app --branch version-12 erpnext https://github.com/frappe/erpnext.git
+bench get-app --branch version-13 erpnext
 bench --site mysite.localhost install-app erpnext
 ```
 
@@ -206,6 +241,8 @@ You can now login with user `Administrator` and the password you choose when cre
 
 To debug workers, skip starting worker with honcho and start it with VSCode debugger.
 
+For advance vscode configuration in the devcontainer, change the config files in `development/.vscode`.
+
 ## Developing using the interactive console
 
 You can launch a simple interactive shell console in the terminal with:
@@ -224,12 +261,13 @@ The first step is installing and updating the required software. Usually the fra
 /workspace/development/frappe-bench/env/bin/python -m pip install --upgrade jupyter ipykernel ipython
 ```
 
-Then, run the commmand `Python: Show Python interactive window` from the VSCode command palette.
+Then, run the command `Python: Show Python interactive window` from the VSCode command palette.
 
 Replace `mysite.localhost` with your site and run the following code in a Jupyter cell:
 
 ```python
 import frappe
+
 frappe.init(site='mysite.localhost', sites_path='/workspace/development/frappe-bench/sites')
 frappe.connect()
 frappe.local.lang = frappe.db.get_default('lang')
@@ -238,44 +276,12 @@ frappe.db.connect()
 
 The first command can take a few seconds to be executed, this is to be expected.
 
-### Fixing MariaDB issues after rebuilding the container
-
-For any reason after rebuilding the container if you are not be able to access MariaDB correctly with the previous configuration. Follow these instructions.
-
-The parameter `'db_name'@'%'` needs to be set in MariaDB and permission to the site database suitably assigned to the user.
-
-This step has to be repeated for all sites available under the current bench.
-Example shows the queries to be executed for site `localhost`
-
-Open sites/localhost/site_config.json:
-
-
-```shell
-code sites/localhost/site_config.json
-```
-
-and take note of the parameters `db_name` and `db_password`.
-
-Enter MariaDB Interactive shell:
-
-```shell
-mysql -uroot -p123 -hmariadb
-```
-
-Execute following queries replacing `db_name` and `db_password` with the values found in site_config.json.
-
-```sql
-UPDATE mysql.user SET Host = '%' where User = 'db_name'; FLUSH PRIVILEGES;
-SET PASSWORD FOR 'db_name'@'%' = PASSWORD('db_password'); FLUSH PRIVILEGES;
-GRANT ALL PRIVILEGES ON `db_name`.* TO 'db_name'@'%'; FLUSH PRIVILEGES;
-EXIT;
-```
-
 ## Manually start containers
 
 In case you don't use VSCode, you may start the containers manually with the following command:
 
 ### Running the containers
+
 ```shell
 docker-compose -f .devcontainer/docker-compose.yml up -d
 ```
@@ -283,5 +289,31 @@ docker-compose -f .devcontainer/docker-compose.yml up -d
 And enter the interactive shell for the development container with the following command:
 
 ```shell
-docker exec -e "TERM=xterm-256color" -w /workspace/development -it devcontainer_frappe_1 bash
+docker exec -e "TERM=xterm-256color" -w /workspace/development -it devcontainer-frappe-1 bash
 ```
+
+## Use additional services during development
+
+Add any service that is needed for development in the `.devcontainer/docker-compose.yml` then rebuild and reopen in devcontainer.
+
+e.g.
+
+```yaml
+...
+services:
+ ...
+  postgresql:
+    image: postgres:11.8
+    environment:
+      POSTGRES_PASSWORD: 123
+    volumes:
+      - postgresql-data:/var/lib/postgresql/data
+    ports:
+      - 5432:5432
+
+volumes:
+  ...
+  postgresql-data:
+```
+
+Access the service by service name from the `frappe` development container. The above service will be accessible via hostname `postgresql`. If ports are published on to host, access it via `localhost:5432`.
